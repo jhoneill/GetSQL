@@ -1,0 +1,41 @@
+<Configuration>
+  <ViewDefinitions>
+    <View>
+      <Name>OdbcConnectionTable</Name>
+      <ViewSelectedBy>
+        <TypeName>System.Data.Odbc.OdbcConnection</TypeName>
+        <TypeName>System.Data.SqlClient.SqlConnection</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Label>Data Source</Label>
+             <Width>30</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Database</Label>
+             <Width>30</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>state</Label>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>DataSource</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Database</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>State</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+  </ViewDefinitions>
+</Configuration>
