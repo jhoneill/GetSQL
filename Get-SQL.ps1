@@ -97,6 +97,8 @@ Function Get-SQL {
         Line breaks and any text before SELECT , UPDATE or DELETE will be removed 
       .Parameter Quiet 
         If specified, surpresses printing of the console message saying how many rows were returned
+      .Parameter OutputVariable
+         Behaves like the common parameters errorVariable, warningvariable etc.to pass back a table object instead of an array of data rows.  
       .Example
         Get-SQL -MsSQLserver -Connection "server=lync3\rtclocal;database=rtcdyn; trusted_connection=true;" -Session Lync
         Creates a new session named "LYNC" to the rtcdyn database on the Rtclocal SQL instance on server Lync 
@@ -465,7 +467,7 @@ Function Get-SQL {
               }
             if   (($GridView) -and (($host.version.major -GE 3)-or ($host.name -match "ISE" )) ) {$dt | Out-GridView -Title $s}  
             else  {$dt}
-            if ($OutputVariable) {Set-Variable -Scope 1 -Name $OutputVariable -Value $dt -Visibility Public} 
+            if ($OutputVariable) {Set-Variable -Scope 2 -Name $OutputVariable -Value $dt -Visibility Public} 
             }
         }
         #If $SQL, $table, $describe or $showtimes weren't included either we're opening a new connection, or we're checking or closing an existing one. 
