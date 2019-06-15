@@ -74,7 +74,7 @@
                -select $fieldname1,"Count(*) as total" -GroupBy $fieldname1                                                                    ).Count |  Should beGreaterThan 0        
     }
     It "Can INSERT rows into a table via the pipeline or a parameter"      {
-         $dirEntry = Get-Item (Get-Command -name powershell).Source | select * 
+         $dirEntry = Get-Item (Get-Command -name powershell).Source | Select-Object -Property * -ExcludeProperty mod*
          $dirEntry, $dirEntry | Get-sql -Session $sessionName -Insert $tableName  
          Get-sql -Session $sessionName -Insert $tableName $dirEntry  
          (Get-sql -Session $sessionName -table  $tableName -where "PSPath" -eq $dirEntry.PSPath -Quiet                                         ).Count | Should beGreaterThan 0    

@@ -394,7 +394,7 @@ Function Get-SQL {
                     $setList = ""
                     for  ($i = 0; $i  -lt  $set.count; $i++) {
                         if  (   $Values[$i] -is [datetime])  {
-                                $Vi   = $Values[$i].tostring($DateFormat)     #Default format has "'" this works for Excel inserts and SQL server.
+                                #$Vi   = $Values[$i].tostring($DateFormat)     #Default format has "'" this works for Excel inserts and SQL server.
                                 #if ($Session.Driver -eq "ACEODBC.DLL") {$Vi = $i[$i]-replace "'","#" } #For Excel where needs # not quotes as date markers
                                 $SetList = $SetList + $Set[$i] + "= " +  $Values[$i] +"  ,"
                         }
