@@ -1,6 +1,6 @@
 ﻿@{  Description       = "Support querying SQL Server, SQlite and ODBC sources."
     Author            = "James O'Neill"
-    ModuleVersion     = "1.3.0.1"
+    ModuleVersion     = "1.3.0.2"
     NestedModules     = "Get-SQL.ps1",
                         "ArgumentCompleters.ps1"
     FormatsToProcess  = "odbcObject.Format.ps1xml"

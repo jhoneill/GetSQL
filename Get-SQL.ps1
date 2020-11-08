@@ -10,16 +10,19 @@ function Get-SQL {
         but the first time the command is run it needs a connection string; this come from $DefaultDBConnection.
         (e.g. set in your Profile) rather than being passed as a parameter: if it is set you can run
         sql "Select * From Customers"
-        without any other setup; PowerShell will assume "sql" means "GET-SQL" if there is no other command named SQL.
+        without any other setup, PowerShell will assume "sql" means "GET-SQL" if there is no other command named SQL.
 
-        Get-SQL -Connection allows a connection to be specified explictly; -MsSQLserver forces the use of
-        the native SQL Server driver, -lite allows the file name of a SQLite Databse to be used
+        Get-SQL -Connection allows a connection to be specified explicitly; -MsSQLserver forces the use of
+        the native SQL Server driver, -lite allows the file name of a SQLite Database to be used
         and -Excel or -Access allow a file name to be used without converting it into an ODBC connection string.
 
         Multiple named sessions may be open concurrently, and the global variable $DbSessions holds objects
-        for each until Get-SQL is run with -Close.
+        for each until Get-SQL is run with -Close. Note that you can run a query and make and/or close
+        the connection in a single command. However, if you pipe the output into a command like
+        Select-Object -First 2 then when Get-SQL is stopped by the downstream command it is unable to
+        close the connection.
 
-        Get-Sql will also build simple queries; for example
+        Get-Sql will also build simple queries, for example
         Get-SQL -Table Authors
         Will run the "Select * from Authors" and a condition can be specified with
         Get-SQL -Table Authors -Where Name -like "*Smith"
@@ -44,14 +47,16 @@ function Get-SQL {
         Specifies the SQL Native client should be used and string in -Connection may be the name of a SQL Server.
       .Parameter Session
         Allows a database connection to be Identified by name: this sets the name used in the global variable $DBSessions.
-        In addition an alias is added: for example, if the session is named "F1" you can use the command F1 in place of Get-SQL -Session F1
+        In addition, an alias is added: for example, if the session is named "F1" you can use the command F1 in place of Get-SQL -Session F1
       .Parameter ForceNew
         If specified, makes a new connection for the default or named session.
         If a connection is already established, -ForceNew is required to change the connection string.
       .Parameter ChangeDB
         For SQL server and ODBC sources which support it (like MySQL) switches to a different database at the same server.
       .Parameter Close
-        Closes a database connection.
+        Closes a database connection. Note this is run in the "end" phase of the command. If Get-SQL is stopped by another command
+        in the pipeline (for example Select-object -first ) then it may not close the connection, so although this command can be
+        combined with a select query, care is needed to ensure it is not defeated by another command in the same pipeline.
       .Parameter Table
         Specifies a table to select or delete from or to update.
       .Parameter Where
@@ -73,7 +78,7 @@ function Get-SQL {
       .Parameter NotLike
         Used with -Where specifies the Not Like operator should be used, with the operand for the condition found in -SQL. "*" in -SQL will be replaced with "%".
       .Parameter Select
-        If Select is omitted, -Table TableName will result in "SELECT * FROM TableName";
+        If Select is omitted, -Table TableName will result in "SELECT * FROM TableName".
         Select specifies field-names (or other text) to use in place of "*".
       .Parameter Distinct
         Specifies that "SELECT DISTINCT ..." should be used in place of "SELECT ...".
@@ -101,9 +106,9 @@ function Get-SQL {
         If specified, returns a list of tables in the current database - note that some ODBC providers don't support this.
       .Parameter Paste
         If specified, takes an SQL statement from the clipboard.
-        Line breaks and any text before SELECT , UPDATE or DELETE will be removed
+        Line breaks and any text before SELECT , UPDATE or DELETE will be removed.
       .Parameter Quiet
-        If specified, surpresses printing of the console message saying how many rows were returned
+        If specified, suppresses printing of the console message saying how many rows were returned.
       .Parameter OutputVariable
          Behaves like the common parameters errorVariable, warningvariable etc.to pass back a table object instead of an array of data rows.
       .Example
@@ -115,17 +120,17 @@ function Get-SQL {
         Note that a script should always name a its session(s), something else may already have set the defualt session
       .Example
         Get-Sql -showtables *dataitem
-        Gives a list of tables on the default connection that end wtih "dataitem"
+        Gives a list of tables on the default connection that end with "dataitem"
       .Example
         Get-SQL -Session f1 -Excel  -Connection C:\Users\James\OneDrive\Public\F1\f1Results.xlsx -showtables
-        Creates a new connection named F1 to the an Excel file, and shows the tables available.
+        Creates a new connection named F1 to an Excel file, and shows the tables available.
       .Example
         f1  -Insert "[RACES]" @{RaceName = $raceName, RaceDate = $racedate.ToString("yyyy-MM-dd") }
         Uses the automatically created alias "f1" which was created in the previous example to insert a row of data into the "Races" Table
       .Example
         Get-SQL -Session F1 -Table "[races]"  -Set "[poleDriver]" -Values $PoleDriver -SQL "WHERE RaceDate = $rd" -Confirm:$false
         Updates the races table in the "F1" session, setting the value in the column "PoleDriver" to the contents of
-        the variable $PoleDriver, in those rows where the RaceDate = $RD. This time the session is explictly specified
+        the variable $PoleDriver, in those rows where the RaceDate = $RD. This time the session is explicitly specified
         (using aliases is OK at the command line but not in scripts especially if the alias is created by a command run in the script)
         Changes normally prompt the user to confirm but here -Confirm:$false  prevents it
       .Example
@@ -140,13 +145,13 @@ function Get-SQL {
         runs it against the default existing connection and displays the results in a grid.
       .Example
         [void](Get-sql $sql  -OutputVariable Table)
-        PowerShell upacks Datatable objects into rows; so anything which needs a data table object can not get get it with
+        PowerShell unpacks Datatable objects into rows; so anything which needs a DataTable object cannot get it with
         $table = Get-Sql $sql
         because $table will contain an Array of DataRow objects, not a single DataTable.
         To get round this Get-SQL has -OutputVariable which behaves like the common parameters errorVariable, warningvariable etc.
         (using the Name of the variable 'Table' not its value '$table' as the parameter value)
-        After running the command the variable in the scope where the command is run contains the DataTable object.
-        Usually the datarow objects will not be required, so the output can be cast to a void or piped to Out-Null,.
+        After running the command, the variable in the scope where the command is run contains the DataTable object.
+        Usually the datarow objects will not be required, so the output can be cast to a void or piped to Out-Null.
     #>
     [CmdletBinding(DefaultParameterSetName='Describe',SupportsShouldProcess=$true,ConfirmImpact="High")]
     param   (
