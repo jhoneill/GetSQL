@@ -33,7 +33,7 @@ function Get-SQL {
         A SQL statement. If other parameters (such as -Table, or -Where) are provided, it becomes the end of the SQL statement.
         If no statement is provided, or none can be built from the other parameters, Get-SQL returns information about the connection.
       .Parameter Connection
-        An ODBC connection string or an Access, Excel, or SQlite file name or the name of a SQL Server
+        An ODBC connection string or an Access, Excel, or SQLite file name or the name of a SQL Server
         It can be in the form "DSN=LocallyDefinedDSNName;" or
         "Driver={MySQL ODBC 5.1 Driver};SERVER=192.168.1.234;PORT=3306;DATABASE=xstreamline;UID=johnDoe;PWD=password;"
         A default connection string can be set in in $DBConnection so that you can just run "Get-SQL " «SQL Statement» ".
@@ -42,7 +42,7 @@ function Get-SQL {
       .Parameter Access
         Specifies that the string in -Connection is an Access file path to be converted into a connection string.
       .Parameter Lite
-        Specifies the SQLite driver should be used and string in -Connection may SQlite file path.
+        Specifies the SQLite driver should be used and the string in -Connection may be the path to a SQLite file.
       .Parameter MsSQLserver
         Specifies the SQL Native client should be used and string in -Connection may be the name of a SQL Server.
       .Parameter Session
@@ -273,7 +273,7 @@ function Get-SQL {
         if   (("Default" -eq $Session) -and $Global:DbSessions[$MyInvocation.InvocationName]) {$Session = $MyInvocation.InvocationName}
 
         #if the session doesn't exist or we're told to force a new session, then create and open a session
-        if   (  ($ForceNew)  -or  (  -not   $Global:DbSessions[$session])) {
+        if   (  ($ForceNew)  -or  (  -not   $Global:DbSessions[$session]) -and -not $Close) {
             if     ($Lite -and $PSVersionTable.PSVersion.Major -gt 5 -and $IsMacOS ) {
                 Add-Type -path (Join-Path $PSScriptRoot "linux-x64\System.Data.SQLite.dll" )
             }
@@ -286,8 +286,11 @@ function Get-SQL {
             elseif ($lite ) {
                 Add-Type -path (Join-Path $PSScriptRoot "win-x64\System.Data.SQLite.dll" )
             }
-            #Catch the forcing of a new *SQL Server* connection
-            if (($ForceNew)      -and       $Global:DbSessions[$session] -and  $Global:DbSessions[$session].GetType().name -eq "SqlConnection" ) {$MsSQLserver = $true}
+            #Catch -force to refresh instead of replace the current connection (e.g. Server has timed out )
+            if (($ForceNew)      -and       $Global:DbSessions[$session] -and -not $PSBoundParameters.ContainsKey('Connection'))  {
+                if     ($Global:DbSessions[$session].GetType().name -eq "SqlConnection"    ) {$MsSQLserver = $true}
+                elseif ($Global:DbSessions[$session].GetType().name -eq "SQLiteConnection" ) {$Lite = $true}
+            }
             #If -MSSQLServer  switch is used assume connection is a server if there is no = sign in the connection string
             if  ($MsSQLserver    -and       $Connection                  -and  $connection -notmatch "=") {
                 $Connection = "server=$Connection;trusted_connection=true;timeout=60"
@@ -297,7 +300,6 @@ function Get-SQL {
               if (Test-Path -Path  $Connection)  {
                      $Connection  = "Data Source="+
                                     (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
-                     Write-Verbose -Message "Connection String is '$connection'"
               }
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
@@ -306,7 +308,6 @@ function Get-SQL {
               if (Test-Path -Path  $Connection)  {
                   $Connection  = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DriverId=790;ReadOnly=0;Dbq=" +
                                  (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
-                  Write-Verbose -Message "Connection String is '$connection'"
               }
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
@@ -314,12 +315,12 @@ function Get-SQL {
               if (Test-Path -Path  $Connection)  {
                      $Connection  = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq="+
                                     (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
-                     Write-Verbose -Message "Connection String is '$connection'"
               }
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
             if (-not $Connection)         { Write-Warning -Message "A connection was needed but -Connection was not provided."; break}
-            #Use different types for SQL server, SQlite and ODBC. They (and the logic) are almost interchangable.
+            Write-Verbose -Message "Connection String is '$connection'"
+            #Use different types for SQL server, SQLite and ODBC. They (and the logic) are almost interchangable.
             if  ($MsSQLserver)            { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $Connection }
             elseif ($Lite)                { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SQLite.SQLiteConnection -ArgumentList $Connection }
             else                          { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.Odbc.OdbcConnection     -ArgumentList $Connection
@@ -370,19 +371,19 @@ function Get-SQL {
             }
         }
         elseif              ($Showtables) { #ODBC method to get tables won't work with every provider, but nor will executing "show tables". $SQL param becomes a filter
-        if   ($Global:DbSessions[$Session].driver -match "SQORA" ) {#Oracle is special ...
-              (Get-SQL  -Session $Session -Quiet -SQL  "select OBJECT_NAME from user_objects where object_type  IN ('VIEW','TABLE'); ").object_name |
-                 Where-Object {$_ -like "$SQL*"}
+            if   ($Global:DbSessions[$Session].driver -match "SQORA" ) {#Oracle is special ...
+                (Get-SQL  -Session $Session -Quiet -SQL  "select OBJECT_NAME from user_objects where object_type  IN ('VIEW','TABLE'); ").object_name |
+                    Where-Object {$_ -like "$SQL*"}
+            }
+            else {$Global:DbSessions[$Session].GetSchema("Tables") | Where-Object {$Global:DbSessions[$Session].DataSource -ne "Access" -or $_.TABLE_TYPE -ne "SYSTEM TABLE"} |
+                ForEach-Object {
+                    if     ($_.TABLE_NAME -like "$SQL*" -and $_.TABLE_NAME -match "\W") {"[" + $_.TABLE_NAME + "]"}
+                    elseif ($_.TABLE_NAME -like "$SQL*")                                {      $_.TABLE_NAME      }
+                } | Sort-Object
+            }
         }
-        else {$Global:DbSessions[$Session].GetSchema("Tables") | Where-Object {$Global:DbSessions[$Session].DataSource -ne "Access" -or $_.TABLE_TYPE -ne "SYSTEM TABLE"} |
-            ForEach-Object {
-                if     ($_.TABLE_NAME -like "$SQL*" -and $_.TABLE_NAME -match "\W") {"[" + $_.TABLE_NAME + "]"}
-                elseif ($_.TABLE_NAME -like "$SQL*")                                {      $_.TABLE_NAME      }
-            } | Sort-Object
-        }
-    }
         elseif           ($null -ne $SQL) { #$SQL holds any SQL which we can't (or don't want to( assemble from the cmdline, a whole statement or final clause
-          ForEach        ($s  in  $SQL) {   #More than one statement/clause can be passed
+          ForEach        ($s     in $SQL) { #More than one statement/clause can be passed
             if ($Delete -or $Set -and -not $Table) { Write-Warning -Message "You must specifiy a table and where condition to use -Delete or -Set" ; return }
             if                            ($Table) { #If $Table was specified, build a Select, Delete or Update query
                 #Support -table [tablename] -Where [ColumnName] -eq 99 and similar syntax.
@@ -486,7 +487,7 @@ function Get-SQL {
             }
             Write-Verbose -Message $s
             #Choose suitable data adapter object based on session type.
-            if ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" )  {
+            if     ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" )  {
                $da = New-Object    -TypeName System.Data.SqlClient.SqlDataAdapter -ArgumentList (
                         New-Object -TypeName System.Data.SqlClient.SqlCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
             }
@@ -523,8 +524,9 @@ function Get-SQL {
         }
     }
     end     {
-        if ($Close) {
+        if ($Close -and $Global:DbSessions[$Session]) {
             $Global:DbSessions[$Session].close()
+            $Global:DbSessions[$Session].dispose()
             $Global:DbSessions.Remove($Session)
             Remove-Item -Path (Join-Path -Path "Alias:\" -ChildPath $Session) -ErrorAction SilentlyContinue
         }
