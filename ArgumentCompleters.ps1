@@ -1,25 +1,20 @@
-﻿Function SQLDBSourceCompletion  {
+﻿function SQLDBSourceCompletion  {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
     (get-item 'HKLM:\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources','HKCU:\software\ODBC\ODBC.INI\ODBC Data Sources' -ErrorAction SilentlyContinue).Property.Where({$_ -notmatch " Files$" -and  $_ -like "$wordToComplete*" })  |
          Sort-Object | ForEach-Object {
                 $tooltip =  (Get-ItemProperty -name $_ -path 'HKLM:\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'HKCU:\software\ODBC\ODBC.INI\ODBC Data Sources' -ErrorAction SilentlyContinue).$_
-                #New-CompletionResult "DSN=$_" $tooltip
-                #completionText, listItemText, resultType, toolTip
                 New-Object System.Management.Automation.CompletionResult "DSN=$_", "DSN=$_", ([System.Management.Automation.CompletionResultType]::ParameterValue) , $tooltip
     }
 }
 
-Function SQLDBSessionCompletion {
+function SQLDBSessionCompletion {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
- # $parameters = (Get-Item 'HKCU:\software\ODBC\ODBC.INI\ODBC Data Sources').property | Where-Object {$_ -notmatch " Files$"}
     $Global:DbSessions.Keys | Where-Object { $_ -like "$wordToComplete*" } | Sort-Object | ForEach-Object {
-            #$tooltip = "$_"
-            #New-CompletionResult $_ $tooltip
             New-Object System.Management.Automation.CompletionResult $_,$_, ([System.Management.Automation.CompletionResultType]::ParameterValue) , $_
     }
 }
 
-Function SQLDBNameCompletion    {
+function SQLDBNameCompletion    {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
     $cmdnameused         = $commandAst.toString() -replace "^(.*?)\s.*$",'$1'
     if ($Global:DbSessions[$cmdnameused]) {
@@ -32,13 +27,11 @@ Function SQLDBNameCompletion    {
     else { $dblist = (Get-SQL -Session $session -SQL "show databases" -quiet).database}
 
      $dblist | Where-Object { $_ -like "$wordToComplete*" } | Sort-Object | ForEach-Object {
-           # $tooltip = "$_"
-           # New-CompletionResult $_ $tooltip
            New-Object System.Management.Automation.CompletionResult $_,$_, ([System.Management.Automation.CompletionResultType]::ParameterValue) , $_
     }
 }
 
-Function SQLTableNameCompletion {
+function SQLTableNameCompletion {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
     $cmdnameused         = $commandAst.toString() -replace "^(.*?)\s.*$",'$1'
     if ($Global:DbSessions[$cmdnameused]) {
@@ -48,7 +41,8 @@ Function SQLTableNameCompletion {
     if (-not $global:DbSessions[$session] -and $fakeBoundParameter['Connection'] ) {
         Get-SQL -Connection $fakeBoundParameter['Connection'] -Session $session | Out-Null
     }
-    If ( $global:DbSessions[$session] ) {
+    if ( $global:DbSessions[$session] ) {
+        $wordToComplete = ($wordToComplete -replace "^`"|^'|'$|`"$", '' )
         Get-SQL -Session $session -Showtables | Where-Object { $_ -like "*$wordToComplete*" } | Sort-Object | ForEach-Object {
                  $display    = $_ -replace "^\[(.*)\]$",'$1' -replace "^'(.*)'$",'$1'
                  $returnValue = """$_"""
@@ -58,17 +52,16 @@ Function SQLTableNameCompletion {
     }
 }
 
-Function SQLFieldNameCompletion {
+function SQLFieldNameCompletion {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
-  # $global:Cast = $commandAst ;
-   # $global:fbp = $fakeBoundParameter
-        $TableName       = $fakeBoundParameter['Table']
-        $cmdnameused     = $commandAst.toString() -replace "^(.*?)\s.*$",'$1'
+        $TableName      = $fakeBoundParameter['Table']
+        $cmdnameused    = $commandAst.toString() -replace "^(.*?)\s.*$",'$1'
         if  ($Global:DbSessions[$cmdnameused]) {
-              $session   = $cmdnameused
+              $session  = $cmdnameused
          }
         else {
-        $session   = $(if($fakeBoundParameter['Session']) {$fakeBoundParameter['Session']} else {'Default'} ) }
+        $session        = $(if($fakeBoundParameter['Session']) {$fakeBoundParameter['Session']} else {'Default'} ) }
+        $wordToComplete = ($wordToComplete -replace "^`"|^'|'$|`"$", '' )
         Get-SQL -Session $session -describe $TableName | Where-Object { $_.column_name -like "*$wordToComplete*" }  | Sort-Object -Property column_name |
             ForEach-Object {
                 $display    = $_.COLUMN_NAME -replace "^\[(.*)\]$",'$1' -replace "^'(.*)'$",'$1'

@@ -273,30 +273,30 @@ function Get-SQL {
         if   (("Default" -eq $Session) -and $Global:DbSessions[$MyInvocation.InvocationName]) {$Session = $MyInvocation.InvocationName}
 
         #if the session doesn't exist or we're told to force a new session, then create and open a session
-        if   (  ($ForceNew)  -or  (  -not   $Global:DbSessions[$session]) -and -not $Close) {
+        if   (  ($ForceNew)  -or  (  -not   $Global:DbSessions[$session]) ) {  #-and -not $Close
             if     ($Lite -and $PSVersionTable.PSVersion.Major -gt 5 -and $IsMacOS ) {
-                Add-Type -path (Join-Path $PSScriptRoot "linux-x64\System.Data.SQLite.dll" )
+                Add-Type -Path (Join-Path $PSScriptRoot "osx\System.Data.SQLite.dll"       )
             }
             elseif ($Lite -and $PSVersionTable.PSVersion.Major -gt 5 -and $linux )   {
-                Add-Type -path (Join-Path $PSScriptRoot "linux-x64\System.Data.SQLite.dll" )
+                Add-Type -Path (Join-Path $PSScriptRoot "linux-x64\System.Data.SQLite.dll" )
             }
             elseif ($lite -and -not [System.Environment]::Is64BitProcess) {
-                Add-Type -path (Join-Path $PSScriptRoot "win-x86\System.Data.SQLite.dll" )
+                Add-Type -Path (Join-Path $PSScriptRoot "win-x86\System.Data.SQLite.dll"   )
             }
             elseif ($lite ) {
-                Add-Type -path (Join-Path $PSScriptRoot "win-x64\System.Data.SQLite.dll" )
+                Add-Type -Path (Join-Path $PSScriptRoot "win-x64\System.Data.SQLite.dll"   )
             }
             #Catch -force to refresh instead of replace the current connection (e.g. Server has timed out )
-            if (($ForceNew)      -and       $Global:DbSessions[$session] -and -not $PSBoundParameters.ContainsKey('Connection'))  {
+            if    (($ForceNew)   -and       $Global:DbSessions[$session] -and -not $PSBoundParameters.ContainsKey('Connection'))  {
                 if     ($Global:DbSessions[$session].GetType().name -eq "SqlConnection"    ) {$MsSQLserver = $true}
                 elseif ($Global:DbSessions[$session].GetType().name -eq "SQLiteConnection" ) {$Lite = $true}
             }
             #If -MSSQLServer  switch is used assume connection is a server if there is no = sign in the connection string
-            if  ($MsSQLserver    -and       $Connection                  -and  $connection -notmatch "=") {
+            if     ($MsSQLserver -and       $Connection                  -and  $connection -notmatch "=") {
                 $Connection = "server=$Connection;trusted_connection=true;timeout=60"
             }
             #If -Lite switch is used assume connection is a file if there is no = sign in the connection string, check it exists and build the connection string
-            if  ($Lite           -and       $Connection                  -and  $connection -notmatch "=") {
+            if     ($Lite        -and       $Connection                  -and  $connection -notmatch "=") {
               if (Test-Path -Path  $Connection)  {
                      $Connection  = "Data Source="+
                                     (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
@@ -304,24 +304,24 @@ function Get-SQL {
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
             #If the -Excel or Access switches are used, then the connection parameter is the path to a file, so check it exists and build the connection string
-            if  ($Excel)                  {
+            if     ($Excel)               {
               if (Test-Path -Path  $Connection)  {
                   $Connection  = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DriverId=790;ReadOnly=0;Dbq=" +
                                  (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
               }
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
-            if  ($Access)                 {
+            if     ($Access)              {
               if (Test-Path -Path  $Connection)  {
                      $Connection  = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq="+
                                     (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
               }
               else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
-            if (-not $Connection)         { Write-Warning -Message "A connection was needed but -Connection was not provided."; break}
+            if     (-not $Connection)     { Write-Warning -Message "A connection was needed but -Connection was not provided."; break}
             Write-Verbose -Message "Connection String is '$connection'"
             #Use different types for SQL server, SQLite and ODBC. They (and the logic) are almost interchangable.
-            if  ($MsSQLserver)            { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $Connection }
+            if     ($MsSQLserver)         { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $Connection }
             elseif ($Lite)                { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SQLite.SQLiteConnection -ArgumentList $Connection }
             else                          { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.Odbc.OdbcConnection     -ArgumentList $Connection
                                             $Global:DbSessions[$Session].ConnectionTimeout = 30
@@ -338,8 +338,8 @@ function Get-SQL {
             if  ("Default" -eq $Session)  { $Global:DefaultDBConnection = $Connection }
             else                          { New-Alias -Name $Session -Value Get-SQL -Scope Global -Force}
         }
-        if      ($ChangeDB)               { $Global:DbSessions[$Session].ChangeDatabase($ChangeDB) } #This method to change DB won't work with every provider
-        if   (  ($Paste) -and (Get-Command -Name 'Get-Clipboard' -ErrorAction SilentlyContinue))  {
+        if         ($ChangeDB)            { $Global:DbSessions[$Session].ChangeDatabase($ChangeDB) } #This method to change DB won't work with every provider
+        if   (     ($Paste) -and (Get-Command -Name 'Get-Clipboard' -ErrorAction SilentlyContinue))  {
             #You could use [windows.clipboard]::GetText() - be warned this may not work in the older releases of the standard shell
             #For older versions of PowerShell I have a Get-Clipboard function which wraps this
             $SQL = (Get-Clipboard) -replace "^.*?(?=select|update|delete)","" -replace "[\n|\r]+"," "
