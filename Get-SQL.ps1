@@ -494,17 +494,17 @@ function Get-SQL {
             }
             Write-Verbose -Message $s
             #Choose suitable data adapter object based on session type.
-            if     ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" )  {
+            if     ($Global:DbSessions[$Session].gettype().name -match "MySqlConnection" ) { #Test this first or it will match on SQLConnection which is for MS SQL Server
+               $da = New-Object    -TypeName MySql.Data.MySqlClient.MySqlDataAdapter -ArgumentList (
+                        New-Object -TypeName MySql.Data.MySqlClient.MySqlCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
+            }
+            elseif ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" )  {
                $da = New-Object    -TypeName System.Data.SqlClient.SqlDataAdapter    -ArgumentList (
                         New-Object -TypeName System.Data.SqlClient.SqlCommand        -ArgumentList $s,$Global:DbSessions[$Session] )
             }
             elseif ($Global:DbSessions[$Session].gettype().name -match "SQLiteConnection" ) {
                $da = New-Object    -TypeName System.Data.SQLite.SQLiteDataAdapter    -ArgumentList (
                         New-Object -TypeName System.Data.SQLite.SQLiteCommand        -ArgumentList $s,$Global:DbSessions[$Session] )
-            }
-            elseif ($Global:DbSessions[$Session].gettype().name -match "MySqlConnection" ) {
-               $da = New-Object    -TypeName MySql.Data.MySqlClient.MySqlDataAdapter -ArgumentList (
-                        New-Object -TypeName MySql.Data.MySqlClient.MySqlCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
             }
             else  {
                $da = New-Object    -TypeName System.Data.Odbc.OdbcDataAdapter        -ArgumentList (
