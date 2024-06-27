@@ -261,6 +261,7 @@ function Get-SQL {
         [parameter(ParameterSetName="SelectWhere")]
         [switch]$Quiet,
         [switch]$MsSQLserver,
+        [switch]$MySQL,
         [switch]$Lite,
         [switch]$Access,
         [switch]$Excel,
@@ -289,7 +290,12 @@ function Get-SQL {
             #Catch -force to refresh instead of replace the current connection (e.g. Server has timed out )
             if    (($ForceNew)   -and       $Global:DbSessions[$session] -and -not $PSBoundParameters.ContainsKey('Connection'))  {
                 if     ($Global:DbSessions[$session].GetType().name -eq "SqlConnection"    ) {$MsSQLserver = $true}
-                elseif ($Global:DbSessions[$session].GetType().name -eq "SQLiteConnection" ) {$Lite = $true}
+                elseif ($Global:DbSessions[$session].GetType().name -eq "SQLiteConnection" ) {$Lite        = $true}
+                elseif ($Global:DbSessions[$session].GetType().name -eq "MySqlConnection"  ) {$MySQL       = $true}
+            }
+            #If -MySQL switch is used check we have the MySQL objects
+            if     ($MySQL -and -not ('MySql.Data.MySqlClient.MySqlConnection' -as [Type])) {
+                throw 'Native MySQL was requested by MSSQL objects were not available' ; return
             }
             #If -MSSQLServer  switch is used assume connection is a server if there is no = sign in the connection string
             if     ($MsSQLserver -and       $Connection                  -and  $connection -notmatch "=") {
@@ -321,9 +327,10 @@ function Get-SQL {
             if     (-not $Connection)     { Write-Warning -Message "A connection was needed but -Connection was not provided."; break}
             Write-Verbose -Message "Connection String is '$connection'"
             #Use different types for SQL server, SQLite and ODBC. They (and the logic) are almost interchangable.
-            if     ($MsSQLserver)         { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $Connection }
-            elseif ($Lite)                { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SQLite.SQLiteConnection -ArgumentList $Connection }
-            else                          { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.Odbc.OdbcConnection     -ArgumentList $Connection
+            if     ($MsSQLserver)         { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection    -ArgumentList $Connection }
+            elseif ($Lite)                { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SQLite.SQLiteConnection    -ArgumentList $Connection }
+            elseif ($MySQL)               { $Global:DbSessions[$Session] = New-Object -TypeName MySql.Data.MySqlClient.MySqlConnection -ArgumentList $Connection }
+            else                          { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.Odbc.OdbcConnection        -ArgumentList $Connection
                                             $Global:DbSessions[$Session].ConnectionTimeout = 30
             }
             #Open our connection. NB, if 32 bit office is installed Excel, Access ETC have 32 bit ODBC drivers which need 32 bit Powershell not 64 bit.
@@ -488,17 +495,20 @@ function Get-SQL {
             Write-Verbose -Message $s
             #Choose suitable data adapter object based on session type.
             if     ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" )  {
-               $da = New-Object    -TypeName System.Data.SqlClient.SqlDataAdapter -ArgumentList (
-                        New-Object -TypeName System.Data.SqlClient.SqlCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
+               $da = New-Object    -TypeName System.Data.SqlClient.SqlDataAdapter    -ArgumentList (
+                        New-Object -TypeName System.Data.SqlClient.SqlCommand        -ArgumentList $s,$Global:DbSessions[$Session] )
             }
             elseif ($Global:DbSessions[$Session].gettype().name -match "SQLiteConnection" ) {
-               $da = New-Object    -TypeName System.Data.SQLite.SQLiteDataAdapter -ArgumentList (
-                        New-Object -TypeName System.Data.SQLite.SQLiteCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
+               $da = New-Object    -TypeName System.Data.SQLite.SQLiteDataAdapter    -ArgumentList (
+                        New-Object -TypeName System.Data.SQLite.SQLiteCommand        -ArgumentList $s,$Global:DbSessions[$Session] )
+            }
+            elseif ($Global:DbSessions[$Session].gettype().name -match "MySqlConnection" ) {
+               $da = New-Object    -TypeName MySql.Data.MySqlClient.MySqlDataAdapter -ArgumentList (
+                        New-Object -TypeName MySql.Data.MySqlClient.MySqlCommand     -ArgumentList $s,$Global:DbSessions[$Session] )
             }
             else  {
-               $da = New-Object    -TypeName System.Data.Odbc.OdbcDataAdapter     -ArgumentList (
-                        New-Object -TypeName System.Data.Odbc.OdbcCommand         -ArgumentList $s,$Global:DbSessions[$Session])
-
+               $da = New-Object    -TypeName System.Data.Odbc.OdbcDataAdapter        -ArgumentList (
+                        New-Object -TypeName System.Data.Odbc.OdbcCommand            -ArgumentList $s,$Global:DbSessions[$Session])
             }
             $dt       = New-Object -TypeName System.Data.DataTable
             #And finally we get to execute the SQL Statement.
