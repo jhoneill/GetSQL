@@ -259,6 +259,7 @@ function Get-SQL {
         [parameter(ParameterSetName="Describe")]
         [parameter(ParameterSetName="Select")]
         [parameter(ParameterSetName="SelectWhere")]
+        [Alias("Q","Qu")]
         [switch]$Quiet,
         [switch]$MsSQLserver,
         [switch]$MySQL,
@@ -266,6 +267,7 @@ function Get-SQL {
         [switch]$Access,
         [switch]$Excel,
         [String]$OutputVariable,
+        [int]$QueryTimeOut,
         [switch]$Close
     )
     begin   {
@@ -510,6 +512,7 @@ function Get-SQL {
                $da = New-Object    -TypeName System.Data.Odbc.OdbcDataAdapter        -ArgumentList (
                         New-Object -TypeName System.Data.Odbc.OdbcCommand            -ArgumentList $s,$Global:DbSessions[$Session])
             }
+            if ($QueryTimeOut) {$da.SelectCommand.CommandTimeout = $QueryTimeOut}
             $dt       = New-Object -TypeName System.Data.DataTable
             #And finally we get to execute the SQL Statement.
             try  { if ((-not ($Set -or $Delete -or ($Insert -and $ConfirmPreference -ne "high"))) -or ($PSCmdlet.ShouldProcess("$Session database", $s)) ) {
