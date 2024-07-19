@@ -296,8 +296,10 @@ function Get-SQL {
                 elseif ($Global:DbSessions[$session].GetType().name -eq "MySqlConnection"  ) {$MySQL       = $true}
             }
             #If -MySQL switch is used check we have the MySQL objects
-            if     ($MySQL -and -not ('MySql.Data.MySqlClient.MySqlConnection' -as [Type])) {
-                throw 'Native MySQL was requested by MSSQL objects were not available' ; return
+            if     ($MySQL) {
+                    $t = 'MySql.Data.MySqlClient.MySqlConnection' -as [Type]
+                    if (-not $t) {throw 'Native MySQL was requested by MSSQL objects have not been load (use Add-Type -path <<path>>\MySql.Data.Dll)' ; return}
+                    else {$dllVerForMySql = $t.Assembly.FullName -replace '^.*version=([\d\.]+).*$','$1'}
             }
             #If -MSSQLServer  switch is used assume connection is a server if there is no = sign in the connection string
             if     ($MsSQLserver -and       $Connection                  -and  $connection -notmatch "=") {
@@ -343,6 +345,10 @@ function Get-SQL {
                                             $Global:DbSessions[$Session] = $null
                                             break
             }
+            if ($MySQL -and [version]::new(8,0,28) -lt $Global:DbSessions[$Session].ServerVersion -and [version]::new(8,0,30) -gt $dllVerForMySql) {
+                Write-Warning "The combinaton of .NET driver and Server version may need  'Set Name utf8MB4' to avoid errors about character set 'utf8MB4'"
+                # V8 non-odbc drivers need .net newer than 5 so Windows PowerShell, native drivers and new servers are a bad combo
+            }
             #Create an alias which matches the connection name.
             if  ("Default" -eq $Session)  { $Global:DefaultDBConnection = $Connection }
             else                          { New-Alias -Name $Session -Value Get-SQL -Scope Global -Force}
@@ -369,7 +375,7 @@ function Get-SQL {
                 if     ($Global:DbSessions[$Session].Driver -match "ACEODBC.DLL" ) {
                         $columns = $Global:DbSessions[$Session].GetSchema("Columns") | Where-Object {$_.TABLE_NAME -eq $Describe }
                 }
-                elseif ($Global:DbSessions[$Session].gettype().name -match "SqlConnection" ) {#SQL server uses slightly differnet syntax
+                elseif ($Global:DbSessions[$Session].gettype().name -eq "SqlConnection" ) {#SQL server uses slightly differnet syntax
                         $columns = $Global:DbSessions[$Session].GetSchema("Columns", @("%","%",$Describe,"%"))
                 }
                 else {  $columns = $Global:DbSessions[$Session].GetSchema("Columns", @("","",$Describe)) }
