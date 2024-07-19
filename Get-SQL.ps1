@@ -346,7 +346,7 @@ function Get-SQL {
                                             break
             }
             if ($MySQL -and [version]::new(8,0,28) -lt $Global:DbSessions[$Session].ServerVersion -and [version]::new(8,0,30) -gt $dllVerForMySql) {
-                Write-Warning "The combinaton of .NET driver and Server version may need  'Set Name utf8MB4' to avoid errors about character set 'utf8MB4'"
+                Write-Warning "The combinaton of .NET driver and Server version may need  'Set Names utf8MB4' to avoid errors about character set 'utf8MB4'"
                 # V8 non-odbc drivers need .net newer than 5 so Windows PowerShell, native drivers and new servers are a bad combo
             }
             #Create an alias which matches the connection name.
