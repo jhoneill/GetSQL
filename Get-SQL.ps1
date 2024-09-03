@@ -266,6 +266,7 @@ function Get-SQL {
         [switch]$Lite,
         [switch]$Access,
         [switch]$Excel,
+        $CredForMsSQL,
         [String]$OutputVariable,
         [int]$QueryTimeOut,
         [switch]$Close
@@ -276,7 +277,7 @@ function Get-SQL {
         if   (("Default" -eq $Session) -and $Global:DbSessions[$MyInvocation.InvocationName]) {$Session = $MyInvocation.InvocationName}
 
         #if the session doesn't exist or we're told to force a new session, then create and open a session
-        if   (  ($ForceNew)  -or  (  -not   $Global:DbSessions[$session]) ) {  #-and -not $Close
+        if   (     ($ForceNew) -or (  -not  $Global:DbSessions[$session]) ) {  #-and -not $Close
             if     ($Lite -and $PSVersionTable.PSVersion.Major -gt 5 -and $IsMacOS ) {
                 Add-Type -Path (Join-Path $PSScriptRoot "osx\System.Data.SQLite.dll"       )
             }
@@ -301,21 +302,23 @@ function Get-SQL {
                     if (-not $t) {throw 'Native MySQL was requested by MSSQL objects have not been load (use Add-Type -path <<path>>\MySql.Data.Dll)' ; return}
                     else {$dllVerForMySql = $t.Assembly.FullName -replace '^.*version=([\d\.]+).*$','$1'}
             }
+            if     ($CredForMsSQL -and ($Access -or $Excel -or $lite -or $mysql)) {Write-Warning '-CredForMsSQL Ignored'}
+            if     ($CredForMsSQL -and -not $MsSQLserver)                         {$MsSQLserver = $true}
             #If -MSSQLServer  switch is used assume connection is a server if there is no = sign in the connection string
-            if     ($MsSQLserver -and       $Connection                  -and  $connection -notmatch "=") {
-                $Connection = "server=$Connection;trusted_connection=true;timeout=60"
+            if     ($MsSQLserver  -and  $Connection                  -and  $connection -notmatch "=") {
+                $Connection =   "server=$Connection;timeout=60"
+                if (-not $CredForMsSQL){$Connection = "server=$Connection;trusted_connection=true;timeout=60"}
             }
             #If -Lite switch is used assume connection is a file if there is no = sign in the connection string, check it exists and build the connection string
-            if     ($Lite        -and       $Connection                  -and  $connection -notmatch "=") {
-              if (Test-Path -Path  $Connection)  {
-                     $Connection  = "Data Source="+
-                                    (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
-              }
-              else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
+            if     ($Lite         -and  $Connection                  -and  $connection -notmatch "=") {
+                if (Test-Path -Path     $Connection)  {
+                                        $Connection  = "Data Source=" + (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
+                }
+                else { Write-Warning -Message "Can't create database connection: could not find $Connection" ; return}
             }
             #If the -Excel or Access switches are used, then the connection parameter is the path to a file, so check it exists and build the connection string
             if     ($Excel)               {
-              if (Test-Path -Path  $Connection)  {
+              if   (Test-Path     -Path $Connection)  {
                   $Connection  = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DriverId=790;ReadOnly=0;Dbq=" +
                                  (Resolve-Path -Path $Connection -ErrorAction SilentlyContinue).Path + ";"
               }
@@ -331,7 +334,15 @@ function Get-SQL {
             if     (-not $Connection)     { Write-Warning -Message "A connection was needed but -Connection was not provided."; break}
             Write-Verbose -Message "Connection String is '$connection'"
             #Use different types for SQL server, SQLite and ODBC. They (and the logic) are almost interchangable.
-            if     ($MsSQLserver)         { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection    -ArgumentList $Connection }
+            if     ($CredForMsSQL -is [pscredential]) {
+                $u=([pscredential]$CredForMsSQL).UserName
+                $p=([pscredential]$CredForMsSQL).Password
+                $p.MakeReadOnly()
+                $CredForMsSQL = [System.Data.SqlClient.SqlCredential]::new($u,$p)
+            }
+            if     ($CredForMsSQL -and $CredForMsSQL -isnot [System.Data.SqlClient.SqlCredential]) {throw 'Invalid SQL Credential'}
+            elseif ($CredForMsSQL)        { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection    -ArgumentList $Connection, $CredForMsSQL }
+            elseif ($MsSQLserver)         { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SqlClient.SqlConnection    -ArgumentList $Connection }
             elseif ($Lite)                { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.SQLite.SQLiteConnection    -ArgumentList $Connection }
             elseif ($MySQL)               { $Global:DbSessions[$Session] = New-Object -TypeName MySql.Data.MySqlClient.MySqlConnection -ArgumentList $Connection }
             else                          { $Global:DbSessions[$Session] = New-Object -TypeName System.Data.Odbc.OdbcConnection        -ArgumentList $Connection
