@@ -183,7 +183,7 @@ function Get-SQL {
         [parameter(ParameterSetName="Update"     , Mandatory=$false)]
         [parameter(ParameterSetName="Delete"     , Mandatory=$false)]
         [parameter(ParameterSetName="Select"     , Mandatory=$false)]
-        [alias('from','update')][string]$Table,
+        [alias('from','update','T')][string]$Table,
         #region Parameters for queries with a WHERE clause
         [parameter(ParameterSetName="UpdateWhere", Mandatory=$true, ValueFromPipelineByPropertyName=$true)]
         [parameter(ParameterSetName="DeleteWhere", Mandatory=$true, ValueFromPipelineByPropertyName=$true)]
@@ -268,6 +268,7 @@ function Get-SQL {
         [switch]$Excel,
         $CredForMsSQL,
         [String]$OutputVariable,
+        [alias('TimeOut')]
         [int]$QueryTimeOut,
         [switch]$Close
     )
@@ -529,7 +530,9 @@ function Get-SQL {
                $da = New-Object    -TypeName System.Data.Odbc.OdbcDataAdapter        -ArgumentList (
                         New-Object -TypeName System.Data.Odbc.OdbcCommand            -ArgumentList $s,$Global:DbSessions[$Session])
             }
-            if ($QueryTimeOut) {$da.SelectCommand.CommandTimeout = $QueryTimeOut}
+            if ($QueryTimeOut -and $da.SelectCommand) {$da.SelectCommand.CommandTimeout = $QueryTimeOut}
+            if ($QueryTimeOut -and $da.InsertCommand) {$da.InsertCommand.CommandTimeout = $QueryTimeOut}
+            if ($QueryTimeOut -and $da.UpdateCommand) {$da.UpdateCommand.CommandTimeout = $QueryTimeOut}
             $dt       = New-Object -TypeName System.Data.DataTable
             #And finally we get to execute the SQL Statement.
             try  { if ((-not ($Set -or $Delete -or ($Insert -and $ConfirmPreference -ne "high"))) -or ($PSCmdlet.ShouldProcess("$Session database", $s)) ) {
