@@ -1,6 +1,7 @@
-﻿if (-not $Global:DbSessions ) { $Global:DbSessions = @{}  }
+﻿if (-not $Global:DbSessions ) { $Global:DbSessions = @{}  } #I have supressed warnings about global variables, this needs to be accessible inside and outside the module.
 
 function Get-SQL {
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword','',Justification='The Credential parameter accepts a SQL cred or a PS cred but not a string')]
     <#
       .Synopsis
         Queries an ODBC, SQLite or SQL Server database
@@ -378,8 +379,8 @@ function Get-SQL {
         if   ($SQL.SQL)                   { $SQL = $SQL.SQL}
         if                    ($Describe) { #support -Describe [tablename] to descibe a table
             if ($Global:DbSessions[$Session].driver -match "SQORA" ) { #Oracle is special ...
-                Get-SQL -Session $Session -Quiet -SQL  "select COLUMN_NAME, data_type as TYPE_NAME, data_length AS COLUMN_SIZE " +
-                                                        " from user_tab_cols where table_name = '$Describe' order by COLUMN_NAME"
+                Get-SQL -Session $Session -Quiet -SQL  ("select COLUMN_NAME, data_type as TYPE_NAME, data_length AS COLUMN_SIZE " +
+                                                        " from user_tab_cols where table_name = '$Describe' order by COLUMN_NAME")
             }
             else  { #Remove any [] around the table name - because that's how .GetSchema() works ...
                 $Describe = $Describe -replace "\[(.*)\]",'$1'
@@ -537,7 +538,7 @@ function Get-SQL {
             #And finally we get to execute the SQL Statement.
             try  { if ((-not ($Set -or $Delete -or ($Insert -and $ConfirmPreference -ne "high"))) -or ($PSCmdlet.ShouldProcess("$Session database", $s)) ) {
                    $rows  = $da.fill($dt)
-                   if (-not ($Quiet -or $Delete -or $Set -or $Insert)) {Write-host -Object ("" + [int]$rows + " row(s) returned")}
+                   if (-not ($Quiet -or $Delete -or $Set -or $Insert)) {Write-Host -Object ("" + [int]$rows + " row(s) returned")}
             }}
             catch {
                if($S)               { #if we get an error and -SQL was passed show the final SQL statement.
